@@ -39,19 +39,19 @@ const reservationSchema = new mongoose.Schema(
     {
         timestamps: true,
         versionKey: false,
-    }
+    },
 );
 
 // Useful index for querying active reservations fast
 reservationSchema.index({ productId: 1, status: 1 });
 
 // Optional: prevent creating reservations in the past
-reservationSchema.pre("validate", function (next) {
-    if (this.expiresAt && this.expiresAt <= new Date()) {
-        return next(new Error("expiresAt must be in the future"));
-    }
-    next();
-});
+// reservationSchema.pre("validate", function (next) {
+//     if (this.expiresAt && this.expiresAt <= new Date()) {
+//         return next(new Error("expiresAt must be in the future"));
+//     }
+//     next();
+// });
 
 const Reservation = mongoose.model("Reservation", reservationSchema);
 
