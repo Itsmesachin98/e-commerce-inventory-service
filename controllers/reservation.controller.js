@@ -26,7 +26,7 @@ const createReservation = async (req, res) => {
             });
         }
 
-        const reservationTTLMinutes = 1;
+        const reservationTTLMinutes = 5;
         const expiresAt = new Date(
             Date.now() + reservationTTLMinutes * 60 * 1000,
         );
@@ -106,4 +106,91 @@ const createReservation = async (req, res) => {
     }
 };
 
-module.exports = createReservation;
+// POST /reservations/:id/confirm
+const confirmReservation = async (req, res) => {
+    const { id: reservationId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(reservationId)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid reservationId",
+        });
+    }
+
+    try {
+        // Step 1: Find reservation
+        const reservation = await Reservation.findById(reservationId);
+
+        if (!reservation) {
+            return res.status(404).json({
+                success: false,
+                message: "Reservation not found",
+            });
+        }
+
+        // Step 2: Idempotency check
+        if (reservation.status === "CONFIRMED") {
+            return res.status(200).json({
+                success: true,
+                message: "Reservation already confirmed (idempotent success)",
+                data: {
+                    reservationId: reservation._id,
+                    status: reservation.status,
+                },
+            });
+        }
+
+        // Step 3: Block invalid confirmations
+        if (reservation.status === "EXPIRED") {
+            return res.status(409).json({
+                success: false,
+                message: "Reservation expired. Cannot confirm.",
+            });
+        }
+
+        if (reservation.status === "CANCELLED") {
+            return res.status(409).json({
+                success: false,
+                message: "Reservation cancelled. Cannot confirm.",
+            });
+        }
+
+        // Step 4: Expiry safety check (important)
+        // If time is already past, treat it as expired
+        if (reservation.expiresAt <= new Date()) {
+            // Mark it expired (best effort)
+            reservation.status = "EXPIRED";
+            await reservation.save();
+
+            return res.status(409).json({
+                success: false,
+                message: "Reservation expired. Cannot confirm.",
+            });
+        }
+
+        // Step 5: Confirm permanently
+        reservation.status = "CONFIRMED";
+        await reservation.save();
+
+        // Step 6: Remove Redis TTL key so worker won't expire it
+        const redisKey = `reservation:${reservation._id.toString()}`;
+        await redisConnection.del(redisKey);
+
+        return res.status(200).json({
+            success: true,
+            message: "Reservation confirmed successfully",
+            data: {
+                reservationId: reservation._id,
+                status: reservation.status,
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Failed to confirm reservation",
+            error: error.message,
+        });
+    }
+};
+
+module.exports = { createReservation, confirmReservation };
