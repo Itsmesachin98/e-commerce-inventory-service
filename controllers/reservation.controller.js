@@ -5,6 +5,7 @@ const Product = require("../models/product.model");
 const Reservation = require("../models/reservation.model");
 const reservationQueue = require("../queues/reservation.queue");
 
+// POST /reservations
 const createReservation = async (req, res) => {
     const session = await mongoose.startSession();
 
@@ -193,4 +194,104 @@ const confirmReservation = async (req, res) => {
     }
 };
 
-module.exports = { createReservation, confirmReservation };
+const cancelReservation = async (req, res) => {
+    const { id: reservationId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(reservationId)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid reservationId",
+        });
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+        let alreadyCancelled = false;
+
+        await session.withTransaction(async () => {
+            // Lock reservation by fetching inside transaction
+            const reservation =
+                await Reservation.findById(reservationId).session(session);
+
+            if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
+
+            // Idempotency: already cancelled
+            if (reservation.status === "CANCELLED") {
+                alreadyCancelled = true;
+                return;
+            }
+
+            // Cannot cancel after confirm
+            if (reservation.status === "CONFIRMED")
+                throw new Error("RESERVATION_ALREADY_CONFIRMED");
+
+            // Expired already restored stock
+            if (reservation.status === "EXPIRED")
+                throw new Error("RESERVATION_ALREADY_EXPIRED");
+
+            // Must be ACTIVE to cancel + restore stock
+            if (reservation.status !== "ACTIVE")
+                throw new Error("RESERVATION_NOT_ACTIVE");
+
+            // Restore stock instantly
+            await Product.updateOne(
+                { _id: reservation.productId },
+                { $inc: { availableStock: reservation.quantity } },
+                { session },
+            );
+
+            // Mark reservation cancelled
+            reservation.status = "CANCELLED";
+            await reservation.save({ session });
+        });
+
+        // Remove Redis TTL key so worker won't expire it later
+        await redisConnection.del(`reservation:${reservationId}`);
+
+        return res.status(200).json({
+            success: true,
+            message: alreadyCancelled
+                ? "Reservation already cancelled (idempotent success)"
+                : "Reservation cancelled successfully",
+        });
+    } catch (error) {
+        if (error.message === "RESERVATION_NOT_FOUND") {
+            return res.status(404).json({
+                success: false,
+                message: "Reservation not found",
+            });
+        }
+
+        if (error.message === "RESERVATION_ALREADY_CONFIRMED") {
+            return res.status(409).json({
+                success: false,
+                message: "Reservation is already confirmed. Cannot cancel.",
+            });
+        }
+
+        if (error.message === "RESERVATION_ALREADY_EXPIRED") {
+            return res.status(409).json({
+                success: false,
+                message: "Reservation already expired. Cannot cancel.",
+            });
+        }
+
+        if (error.message === "RESERVATION_NOT_ACTIVE") {
+            return res.status(409).json({
+                success: false,
+                message: "Reservation is not ACTIVE. Cannot cancel.",
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to cancel reservation",
+            error: error.message,
+        });
+    } finally {
+        session.endSession();
+    }
+};
+
+module.exports = { createReservation, confirmReservation, cancelReservation };
