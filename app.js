@@ -7,6 +7,7 @@ const connectDB = require("./config/db");
 const { connectRedis } = require("./config/redis");
 
 const reservationRoute = require("./routes/reservation.route");
+const productRoute = require("./routes/product.route");
 
 const PORT = process.env.PORT || 3000;
 
@@ -28,5 +29,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/", reservationRoute);
+app.use("/", productRoute);
 
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
