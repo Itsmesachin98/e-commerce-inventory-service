@@ -5,6 +5,46 @@ const Product = require("../models/product.model");
 const Reservation = require("../models/reservation.model");
 const reservationQueue = require("../queues/reservation.queue");
 
+// GET /reservations/:id
+const getReservation = async (req, res) => {
+    const { id: reservationId } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(reservationId)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid reservationId",
+        });
+    }
+
+    try {
+        const reservation = await Reservation.findById(reservationId).lean();
+
+        // Not found
+        if (!reservation) {
+            return res.status(404).json({
+                success: false,
+                message: "Reservation not found",
+            });
+        }
+
+        // Success
+        return res.status(200).json({
+            success: true,
+            message: "Reservation fetched successfully",
+            data: reservation,
+        });
+    } catch (error) {
+        console.error("Error fetching reservation:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch reservation",
+            error: error.message,
+        });
+    }
+};
+
 // POST /reservations
 const createReservation = async (req, res) => {
     const session = await mongoose.startSession();
@@ -194,6 +234,7 @@ const confirmReservation = async (req, res) => {
     }
 };
 
+// POST /reservations/:id/cancel
 const cancelReservation = async (req, res) => {
     const { id: reservationId } = req.params;
 
@@ -294,4 +335,9 @@ const cancelReservation = async (req, res) => {
     }
 };
 
-module.exports = { createReservation, confirmReservation, cancelReservation };
+module.exports = {
+    getReservation,
+    createReservation,
+    confirmReservation,
+    cancelReservation,
+};
