@@ -6,7 +6,7 @@ dotenv.config();
 const connectDB = require("./config/db");
 const { connectRedis } = require("./config/redis");
 
-const reservationRoute = require("./routes/reservation.routes");
+const reservationRoute = require("./routes/reservation.route");
 
 const PORT = process.env.PORT || 3000;
 
