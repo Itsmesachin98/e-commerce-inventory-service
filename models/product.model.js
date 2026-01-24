@@ -10,6 +10,12 @@ const productSchema = new mongoose.Schema(
             maxlength: [120, "Product name must be at most 120 characters"],
         },
 
+        price: {
+            type: Number,
+            required: [true, "Price is required"],
+            min: [0, "Price cannot be negative"],
+        },
+
         totalStock: {
             type: Number,
             required: [true, "Total stock is required"],
@@ -35,7 +41,7 @@ const productSchema = new mongoose.Schema(
         versionKey: false,
         toJSON: { virtuals: true },
         toObject: { virtuals: true },
-    }
+    },
 );
 
 // Important for searching product by name
@@ -45,7 +51,7 @@ productSchema.index({ name: 1 });
 productSchema.pre("save", function (next) {
     if (this.availableStock > this.totalStock) {
         return next(
-            new Error("availableStock cannot be greater than totalStock")
+            new Error("availableStock cannot be greater than totalStock"),
         );
     }
 
