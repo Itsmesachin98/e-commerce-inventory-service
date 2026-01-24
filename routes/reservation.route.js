@@ -9,9 +9,10 @@ const {
 
 const router = express.Router();
 
-router.get("/reservations/:id", getReservation);
-router.post("/reservations", createReservation);
-router.post("/reservations/:id/confirm", confirmReservation);
-router.post("/reservations/:id/cancel", cancelReservation);
+router.get("/:id", getReservation);
+
+router.post("/", createReservation);
+router.post("/:id/confirm", confirmReservation);
+router.post("/:id/cancel", cancelReservation);
 
 module.exports = router;
