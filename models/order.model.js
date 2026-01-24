@@ -97,12 +97,12 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ userId: 1, createdAt: -1 });
 
 // ✅ Safety: calculate totalAmount automatically if not provided
-orderSchema.pre("validate", function (next) {
-    if (this.unitPrice != null && this.quantity != null) {
-        this.totalAmount = this.unitPrice * this.quantity;
-    }
-    next();
-});
+// orderSchema.pre("validate", function (next) {
+//     if (this.unitPrice != null && this.quantity != null) {
+//         this.totalAmount = this.unitPrice * this.quantity;
+//     }
+//     next();
+// });
 
 const Order = mongoose.model("Order", orderSchema);
 module.exports = Order;

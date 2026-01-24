@@ -12,59 +12,41 @@ const createReservationService = async ({
     productId,
     quantity,
     userId = null,
+    session,
 }) => {
-    const session = await mongoose.startSession();
+    const ttlSeconds = TTL_MINUTES * 60;
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
-    try {
-        const ttlSeconds = TTL_MINUTES * 60;
-        const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+    // ✅ Atomic stock deduction inside same session
+    const product = await Product.findOneAndUpdate(
+        { _id: productId, availableStock: { $gte: quantity } },
+        { $inc: { availableStock: -quantity } },
+        { new: true, session },
+    );
 
-        let reservationDoc;
+    if (!product) throw new Error("INSUFFICIENT_STOCK_OR_NOT_FOUND");
 
-        await session.withTransaction(async () => {
-            // Atomic stock deduction
-            const product = await Product.findOneAndUpdate(
-                { _id: productId, availableStock: { $gte: quantity } },
-                { $inc: { availableStock: -quantity } },
-                { new: true, session },
-            );
+    const created = await Reservation.create(
+        [
+            {
+                productId,
+                quantity,
+                status: "ACTIVE",
+                expiresAt,
+                userId,
+            },
+        ],
+        { session },
+    );
 
-            if (!product) throw new Error("INSUFFICIENT_STOCK_OR_NOT_FOUND");
+    const reservationDoc = created[0];
 
-            const created = await Reservation.create(
-                [
-                    {
-                        productId,
-                        quantity,
-                        status: "ACTIVE",
-                        expiresAt,
-                        userId,
-                    },
-                ],
-                { session },
-            );
-
-            reservationDoc = created[0];
-        });
-
-        // Redis TTL
-        const redisKey = `reservation:${reservationDoc._id.toString()}`;
-        await redisConnection.set(redisKey, "ACTIVE", "EX", TTL_MINUTES * 60);
-
-        // Delayed expiry job
-        await reservationQueue.add(
-            "expire-reservation",
-            { reservationId: reservationDoc._id.toString() },
-            { delay: TTL_MINUTES * 60 * 1000 },
-        );
-
-        return {
-            reservationId: reservationDoc._id,
-            expiresAt: reservationDoc.expiresAt,
-        };
-    } finally {
-        await session.endSession();
-    }
+    return {
+        reservationId: reservationDoc._id,
+        expiresAt: reservationDoc.expiresAt,
+        productName: product.name, // optional helper
+        unitPrice: product.price ?? 0, // optional helper
+    };
 };
 
 // Confirm Reservation Service

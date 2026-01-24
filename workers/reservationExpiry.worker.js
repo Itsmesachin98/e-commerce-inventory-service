@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const { redisConnection } = require("../config/redis");
 const Product = require("../models/product.model");
 const Reservation = require("../models/reservation.model");
+const Order = require("../models/order.model");
 
 const startWorker = async () => {
     // IMPORTANT: connect MongoDB in worker process
@@ -61,6 +62,22 @@ const startWorker = async () => {
                     );
 
                     console.log("Test 7");
+
+                    // Cancel pending order linked to this reservation
+                    await Order.updateOne(
+                        {
+                            reservationId: reservation._id,
+                            status: "PENDING_PAYMENT",
+                        },
+                        {
+                            $set: {
+                                status: "EXPIRED",
+                            },
+                        },
+                        { session },
+                    );
+
+                    console.log("Test 8");
                 });
             } finally {
                 session.endSession();
