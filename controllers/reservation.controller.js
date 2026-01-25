@@ -7,6 +7,27 @@ const {
     cancelReservationService,
 } = require("../services/reservation.service");
 
+// GET /reservations
+const getAllReservations = async (req, res) => {
+    try {
+        const reservations = await Reservation.find();
+
+        return res.status(200).json({
+            success: true,
+            message: "Reservations fetched successfully",
+            data: reservations,
+        });
+    } catch (error) {
+        console.error("Error fetching reservations:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch reservations",
+            error: error.message,
+        });
+    }
+};
+
 // GET /reservations/:id
 const getReservation = async (req, res) => {
     const { id: reservationId } = req.params;
@@ -182,6 +203,7 @@ const cancelReservation = async (req, res) => {
 };
 
 module.exports = {
+    getAllReservations,
     getReservation,
     createReservation,
     confirmReservation,

@@ -5,10 +5,12 @@ const {
     confirmReservation,
     cancelReservation,
     getReservation,
+    getAllReservations,
 } = require("../controllers/reservation.controller");
 
 const router = express.Router();
 
+router.get("/", getAllReservations);
 router.get("/:id", getReservation);
 
 router.post("/", createReservation);
