@@ -6,6 +6,69 @@ const {
     cancelOrderService,
 } = require("../services/order.service");
 
+const Order = require("../models/order.model");
+
+// GET /order
+const getAllOrders = async (req, res) => {
+    try {
+        const orders = await Order.find().select("-payment");
+
+        return res.status(200).json({
+            success: true,
+            message: "Orders fetched successfully",
+            data: orders,
+        });
+    } catch (error) {
+        console.error("Error fetching orders:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch orders",
+            error: error.message,
+        });
+    }
+};
+
+// GET /order/:id
+const getOneOrder = async (req, res) => {
+    const { id: orderId } = req.params;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid orderId",
+        });
+    }
+
+    try {
+        const order = await Order.findById(orderId).select("-payment");
+
+        // Not found
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found",
+            });
+        }
+
+        // Success
+        return res.status(200).json({
+            success: true,
+            message: "Order fetched successfully",
+            data: order,
+        });
+    } catch (error) {
+        console.error("Error fetching order:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch order",
+            error: error.message,
+        });
+    }
+};
+
 // POST /order
 const createOrder = async (req, res) => {
     try {
@@ -185,4 +248,10 @@ const cancelOrder = async (req, res) => {
     }
 };
 
-module.exports = { createOrder, confirmOrder, cancelOrder };
+module.exports = {
+    getAllOrders,
+    getOneOrder,
+    createOrder,
+    confirmOrder,
+    cancelOrder,
+};
