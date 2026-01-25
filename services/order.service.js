@@ -1,15 +1,19 @@
 const mongoose = require("mongoose");
 
 const Product = require("../models/product.model");
-const Reservation = require("../models/reservation.model");
 const Order = require("../models/order.model");
-const { redisConnection } = require("../config/redis");
+
 const {
     createReservationService,
+    confirmReservationService,
+    cancelReservationService,
     TTL_MINUTES,
 } = require("./reservation.service");
+
+const { redisConnection } = require("../config/redis");
 const reservationQueue = require("../queues/reservation.queue");
 
+// Create order service
 const createOrderService = async ({ productId, quantity, userId = null }) => {
     const session = await mongoose.startSession();
 
@@ -25,7 +29,7 @@ const createOrderService = async ({ productId, quantity, userId = null }) => {
                     productId,
                     quantity,
                     userId,
-                    session, // ✅ pass session
+                    session, // Pass session
                 },
             );
 
@@ -78,88 +82,100 @@ const createOrderService = async ({ productId, quantity, userId = null }) => {
     }
 };
 
+// Confirm order service
 const confirmOrderService = async ({ orderId }) => {
     const session = await mongoose.startSession();
 
-    try {
-        let finalOrder;
+    let result;
+    let alreadyConfirmed = false;
 
+    try {
         await session.withTransaction(async () => {
             const order = await Order.findById(orderId).session(session);
+
             if (!order) throw new Error("ORDER_NOT_FOUND");
 
             // Idempotency
             if (order.status === "CONFIRMED") {
-                finalOrder = order;
+                alreadyConfirmed = true;
+                result = order;
                 return;
             }
 
-            if (order.status === "CANCELLED" || order.status === "EXPIRED") {
-                throw new Error(`ORDER_NOT_CONFIRMABLE_${order.status}`);
+            if (
+                order.status === "CANCELLED" ||
+                order.status === "EXPIRED" ||
+                order.status === "FAILED"
+            ) {
+                throw new Error(`ORDER_NOT_CONFIRMABLE`);
             }
 
-            const reservation = await Reservation.findById(
-                order.reservationId,
-            ).session(session);
-            if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
-
-            if (reservation.status === "CONFIRMED") {
-                order.status = "CONFIRMED";
-                await order.save({ session });
-                finalOrder = order;
-                return;
+            if (order.status !== "PENDING_PAYMENT") {
+                console.log("how the fuck am i getting error here");
+                throw new Error("ORDER_NOT_PENDING_PAYMENT");
             }
 
-            if (reservation.status !== "ACTIVE") {
-                throw new Error(
-                    `RESERVATION_NOT_CONFIRMABLE_${reservation.status}`,
-                );
-            }
+            // Confirm reservation (same transaction)
+            const reservation = await confirmReservationService({
+                reservationId: order.reservationId,
+                session,
+            });
 
-            // confirm reservation + order together (atomic business confirm)
-            reservation.status = "CONFIRMED";
-            await reservation.save({ session });
-
+            // Confirm order
             order.status = "CONFIRMED";
             await order.save({ session });
 
-            finalOrder = order;
+            result = order;
         });
 
-        await redisConnection.del(
-            `reservation:${finalOrder.reservationId.toString()}`,
-        );
+        // After commit: remove Redis key so worker won't expire it
+        const redisKey = `reservation:${result.reservationId.toString()}`;
+        await redisConnection.del(redisKey);
 
-        return { orderId: finalOrder._id, status: finalOrder.status };
+        return { result, alreadyConfirmed };
     } finally {
         await session.endSession();
     }
 };
 
+// Cancel order service
 const cancelOrderService = async ({ orderId }) => {
     const session = await mongoose.startSession();
 
-    try {
-        let finalOrder;
+    let result;
 
+    try {
         await session.withTransaction(async () => {
             const order = await Order.findById(orderId).session(session);
+
             if (!order) throw new Error("ORDER_NOT_FOUND");
 
-            if (order.status === "CANCELLED") {
-                finalOrder = order;
-                return;
+            // Only allow cancel when payment not completed
+            if (order.status !== "PENDING_PAYMENT") {
+                throw new Error("ORDER_NOT_CANCELLABLE");
             }
 
-            if (order.status === "CONFIRMED") {
-                throw new Error("ORDER_ALREADY_CONFIRMED");
-            }
+            await cancelReservationService({
+                reservationId: order.reservationId,
+                session,
+            });
 
-            const reservation = await Reservation.findById(
-                order.reservationId,
-            ).session(session);
-            if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
+            // Cancel order
+            order.status = "CANCELLED";
+            await order.save({ session });
+
+            result = {
+                orderId: order._id,
+                reservationId: order.reservationId,
+                status: order.status,
+            };
         });
+
+        // After commit: remove Redis key so expiry worker won’t expire
+        const redisKey = `reservation:${result.reservationId.toString()}`;
+        await redisConnection.del(redisKey);
+
+        return result;
     } finally {
         await session.endSession();
     }

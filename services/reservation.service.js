@@ -1,9 +1,5 @@
-const mongoose = require("mongoose");
-
 const Product = require("../models/product.model");
 const Reservation = require("../models/reservation.model");
-const { redisConnection } = require("../config/redis");
-const reservationQueue = require("../queues/reservation.queue");
 
 const TTL_MINUTES = 5;
 
@@ -17,7 +13,7 @@ const createReservationService = async ({
     const ttlSeconds = TTL_MINUTES * 60;
     const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
-    // ✅ Atomic stock deduction inside same session
+    // Atomic stock deduction inside same session
     const product = await Product.findOneAndUpdate(
         { _id: productId, availableStock: { $gte: quantity } },
         { $inc: { availableStock: -quantity } },
@@ -50,87 +46,45 @@ const createReservationService = async ({
 };
 
 // Confirm Reservation Service
-const confirmReservationService = async ({ reservationId }) => {
-    const reservation = await Reservation.findById(reservationId);
+const confirmReservationService = async ({ reservationId, session }) => {
+    const reservation = await Reservation.findOne({
+        _id: reservationId,
+        status: "ACTIVE",
+    }).session(session);
 
     if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
 
-    if (reservation.status === "CANCELLED")
-        throw new Error("RESERVATION_CANCELLED");
-
-    if (reservation.status === "EXPIRED")
+    // Extra safety check
+    if (reservation.expiresAt && reservation.expiresAt <= new Date()) {
         throw new Error("RESERVATION_EXPIRED");
-
-    if (reservation.status === "CONFIRMED") {
-        return { status: "CONFIRMED", alreadyConfirmed: true };
     }
 
-    if (reservation.status !== "ACTIVE")
-        throw new Error("RESERVATION_NOT_ACTIVE");
+    reservation.status = "CONFIRMED";
+    await reservation.save({ session });
 
-    // Atomic + idempotent confirm
-    const updated = await Reservation.findOneAndUpdate(
-        { _id: reservationId, status: "ACTIVE" },
-        { $set: { status: "CONFIRMED" } },
-        { new: true },
-    );
-
-    if (updated) {
-        await redisConnection.del(`reservation:${reservationId}`);
-        return { status: "CONFIRMED", alreadyConfirmed: false };
-    }
-
-    throw new Error(`RESERVATION_NOT_CONFIRMABLE_${reservation.status}`);
+    return reservation;
 };
 
 // Cancel Reservation Service
-const cancelReservationService = async ({ reservationId }) => {
-    const session = await mongoose.startSession();
+const cancelReservationService = async ({ reservationId, session }) => {
+    const reservation = await Reservation.findOne({
+        _id: reservationId,
+        status: "ACTIVE",
+    }).session(session);
 
-    try {
-        let finalStatus;
-        let alreadyCancelled = false;
+    if (!reservation) throw new Error("RESERVATION_NOT_ACTIVE");
 
-        await session.withTransaction(async () => {
-            const reservation =
-                await Reservation.findById(reservationId).session(session);
+    // Mark reservation as cancelled
+    reservation.status = "CANCELLED";
+    await reservation.save({ session });
 
-            if (!reservation) throw new Error("RESERVATION_NOT_FOUND");
+    await Product.updateOne(
+        { _id: reservation.productId },
+        { $inc: { availableStock: reservation.quantity } },
+        { session },
+    );
 
-            if (reservation.status === "CANCELLED") {
-                finalStatus = "CANCELLED";
-                alreadyCancelled = true;
-                return;
-            }
-
-            if (reservation.status === "EXPIRED")
-                throw new Error("RESERVATION_EXPIRED");
-
-            if (reservation.status === "CONFIRMED") {
-                throw new Error("RESERVATION_CONFIRMED");
-            }
-
-            if (reservation.status !== "ACTIVE") {
-                throw new Error("RESERVATION_NOT_ACTIVE");
-            }
-
-            await Product.updateOne(
-                { _id: reservation.productId },
-                { $inc: { availableStock: reservation.quantity } },
-                { session },
-            );
-
-            reservation.status = "CANCELLED";
-            await reservation.save({ session });
-
-            finalStatus = "CANCELLED";
-        });
-
-        await redisConnection.del(`reservation:${reservationId}`);
-        return { status: finalStatus, alreadyCancelled };
-    } finally {
-        session.endSession();
-    }
+    return reservation;
 };
 
 module.exports = {
