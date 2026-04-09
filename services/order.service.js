@@ -67,7 +67,7 @@ const createOrderService = async ({ productId, quantity, userId = null }) => {
          * (no rollback confusion)
          */
 
-        const redisKey = `reservation:${result.reservationId.toString()}`;
+        const redisKey = `ecis:reservation:${result.reservationId.toString()}`;
         await redisConnection.set(redisKey, "ACTIVE", "EX", TTL_MINUTES * 60);
 
         await reservationQueue.add(
@@ -129,7 +129,7 @@ const confirmOrderService = async ({ orderId }) => {
         });
 
         // After commit: remove Redis key so worker won't expire it
-        const redisKey = `reservation:${result.reservationId.toString()}`;
+        const redisKey = `ecis:reservation:${result.reservationId.toString()}`;
         await redisConnection.del(redisKey);
 
         return { result, alreadyConfirmed };
@@ -172,7 +172,7 @@ const cancelOrderService = async ({ orderId }) => {
         });
 
         // After commit: remove Redis key so expiry worker won’t expire
-        const redisKey = `reservation:${result.reservationId.toString()}`;
+        const redisKey = `ecis:reservation:${result.reservationId.toString()}`;
         await redisConnection.del(redisKey);
 
         return result;

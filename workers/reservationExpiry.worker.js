@@ -18,7 +18,7 @@ const startWorker = async () => {
         async (job) => {
             const { reservationId } = job.data;
 
-            const redisKey = `reservation:${reservationId}`;
+            const redisKey = `ecis:reservation:${reservationId}`;
 
             // If key still exists, reservation is still active (not expired yet)
             // If key is missing => TTL expired OR manually deleted
