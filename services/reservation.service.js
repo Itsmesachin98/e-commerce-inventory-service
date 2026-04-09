@@ -1,7 +1,7 @@
 const Product = require("../models/product.model");
 const Reservation = require("../models/reservation.model");
 
-const TTL_MINUTES = 5;
+const TTL_MINUTES = 2;
 
 // Create Reservation Service
 const createReservationService = async ({

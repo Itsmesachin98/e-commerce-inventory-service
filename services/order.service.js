@@ -111,7 +111,6 @@ const confirmOrderService = async ({ orderId }) => {
             }
 
             if (order.status !== "PENDING_PAYMENT") {
-                console.log("how the fuck am i getting error here");
                 throw new Error("ORDER_NOT_PENDING_PAYMENT");
             }
 
