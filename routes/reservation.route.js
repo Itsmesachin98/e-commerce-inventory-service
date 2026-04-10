@@ -15,24 +15,9 @@ const router = express.Router();
  *     tags: [Reservations]
  *     responses:
  *       200:
- *         description: Reservations retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/Success'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/Reservation'
+ *         description: Reservations fetched successfully
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/", getAllReservations);
 
@@ -51,34 +36,13 @@ router.get("/", getAllReservations);
  *         description: Reservation ID
  *     responses:
  *       200:
- *         description: Reservation retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/Success'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/Reservation'
+ *         description: Reservation fetched successfully
  *       400:
  *         description: Invalid reservation ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Reservation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/:id", getReservation);
 
