@@ -14,24 +14,9 @@ const router = express.Router();
  *     tags: [Products]
  *     responses:
  *       200:
- *         description: Products retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/Success'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/Product'
+ *         description: Products fetched successfully
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/products", getAllProducts);
 
@@ -50,34 +35,13 @@ router.get("/products", getAllProducts);
  *         description: Product ID
  *     responses:
  *       200:
- *         description: Product retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/Success'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/Product'
+ *         description: Product fetched successfully
  *       400:
  *         description: Invalid product ID
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Product not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/products/:id", getOneProduct);
 
