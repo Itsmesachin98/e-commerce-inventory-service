@@ -14,9 +14,9 @@ const options = {
             {
                 url: process.env.BACKEND_URL,
                 description:
-                    process.env.NODE_ENV === "development"
-                        ? "Development server"
-                        : "Production server",
+                    process.env.NODE_ENV === "production"
+                        ? "Production"
+                        : "Development",
             },
         ],
         components: {
@@ -226,9 +226,9 @@ const options = {
     apis: ["./routes/*.js"], // Path to the API routes
 };
 
-const specs = swaggerJSDoc(options);
+const swaggerSpec = swaggerJSDoc(options);
 
 module.exports = {
     swaggerUi,
-    specs,
+    swaggerSpec,
 };

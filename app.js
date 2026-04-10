@@ -1,7 +1,8 @@
-const express = require("express");
-const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
+
+const express = require("express");
+const cors = require("cors");
 
 const connectDB = require("./config/db");
 const { connectRedis } = require("./config/redis");
@@ -10,7 +11,7 @@ const reservationRoute = require("./routes/reservation.route");
 const productRoute = require("./routes/product.route");
 const orderRoute = require("./routes/order.route");
 
-const { swaggerUi, specs } = require("./swagger");
+const { swaggerUi, swaggerSpec } = require("./docs/swagger");
 
 const PORT = process.env.PORT || 3000;
 
@@ -32,7 +33,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Swagger documentation
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use("/reservations", reservationRoute);
 app.use("/", productRoute);
