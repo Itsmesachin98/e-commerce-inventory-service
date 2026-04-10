@@ -4,6 +4,8 @@
     "description": "",
     "main": "app.js",
     "scripts": {
+        "start": "node app.js",
+        "dev": "nodemon app.js",
         "worker:reservation": "node workers/reservationExpiry.worker.js"
     },
     "keywords": [],
@@ -16,6 +18,8 @@
         "dotenv": "^17.2.3",
         "express": "^5.2.1",
         "ioredis": "^5.9.2",
-        "mongoose": "^9.1.4"
+        "mongoose": "^9.1.4",
+        "swagger-jsdoc": "^6.2.8",
+        "swagger-ui-express": "^5.0.1"
     }
 }

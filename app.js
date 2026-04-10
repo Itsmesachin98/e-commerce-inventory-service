@@ -10,6 +10,8 @@ const reservationRoute = require("./routes/reservation.route");
 const productRoute = require("./routes/product.route");
 const orderRoute = require("./routes/order.route");
 
+const { swaggerUi, specs } = require("./swagger");
+
 const PORT = process.env.PORT || 3000;
 
 connectDB();
@@ -28,6 +30,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Swagger documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 
 app.use("/reservations", reservationRoute);
 app.use("/", productRoute);
