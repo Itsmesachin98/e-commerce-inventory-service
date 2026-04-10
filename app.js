@@ -20,6 +20,9 @@ connectDB();
 (async () => {
     try {
         await connectRedis();
+
+        // ✅ START WORKER HERE (after Redis is ready)
+        require("./workers/reservationExpiry.worker");
     } catch (err) {
         console.error("Redis failed to connect", err);
         process.exit(1);

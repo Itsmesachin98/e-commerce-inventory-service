@@ -24,35 +24,36 @@ const startWorker = async () => {
             // If key is missing => TTL expired OR manually deleted
             const keyExists = await redisConnection.exists(redisKey);
 
-            console.log("Test 1");
+            console.log("Test 1 Passed");
 
             // Most correct flow:
             // If key is missing, we should expire it in DB and restore stock
             if (keyExists) return;
 
-            console.log("Test 2");
+            console.log("Test 2 Passed");
 
             const session = await mongoose.startSession();
 
             try {
-                console.log("Test 3");
+                console.log("Test 3 Passed");
+
                 await session.withTransaction(async () => {
                     const reservation = await Reservation.findOne({
                         _id: reservationId,
                         status: "ACTIVE",
                     }).session(session);
 
-                    console.log("Test 4");
+                    console.log("Test 4 Passed");
 
                     if (!reservation) return; // already confirmed/cancelled/expired
 
-                    console.log("Test 5");
+                    console.log("Test 5 Passed");
 
                     // Mark reservation as expired
                     reservation.status = "EXPIRED";
                     await reservation.save({ session });
 
-                    console.log("Test 6");
+                    console.log("Test 6 Passed");
 
                     // Restore stock
                     await Product.updateOne(
@@ -61,7 +62,7 @@ const startWorker = async () => {
                         { session },
                     );
 
-                    console.log("Test 7");
+                    console.log("Test 7 Passed");
 
                     // Cancel pending order linked to this reservation
                     await Order.updateOne(
@@ -77,7 +78,7 @@ const startWorker = async () => {
                         { session },
                     );
 
-                    console.log("Test 8");
+                    console.log("Test 8 Passed");
                 });
             } finally {
                 session.endSession();
