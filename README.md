@@ -1,39 +1,54 @@
 # 🛒 E-Commerce Inventory Service
 
-A **production-grade inventory management microservice** for e-commerce platforms featuring **real-time stock control**, **reservation-based checkout**, **distributed transactions**, and **automatic expiry handling** to prevent overselling.
+A **production-grade inventory management microservice** designed to handle **high-concurrency e-commerce scenarios** with **zero overselling guarantees**.
+
+Built with a focus on **scalability, consistency, and fault tolerance**, this service implements **reservation-based checkout**, **distributed transactions**, and **automated recovery mechanisms**.
 
 ---
 
-## 🚀 Overview
+## 🚀 Live API Documentation
 
-The **E-Commerce Inventory Service** is built to solve one of the most critical problems in e-commerce:
+👉 **Test the API here:**  
+🔗 https://e-commerce-inventory-service.onrender.com/api-docs
 
-✅ **Preventing overselling during high concurrency**
+- Interactive Swagger UI
+- Try endpoints directly from the browser
+- Explore request/response schemas
 
-When multiple users try to purchase the same product simultaneously, race conditions can lead to:
+---
 
-- Overselling (inventory goes negative)
-- Duplicate reservations
-- Stock deduction without payment completion
+## 🎯 Problem Statement
 
-This service solves it using:
+In high-traffic e-commerce systems, concurrent purchase attempts can lead to:
+
+- ❌ Overselling (negative inventory)
+- ❌ Race conditions
+- ❌ Inconsistent order states
+- ❌ Stock loss due to failed payments
+
+---
+
+## 💡 Solution
+
+This service ensures **strong consistency and reliability** using:
 
 - **Atomic MongoDB transactions**
-- **Time-bound inventory reservations**
-- **Redis caching + BullMQ expiry jobs**
-- **Idempotent confirmation handling**
+- **Reservation-based inventory locking**
+- **Redis-backed caching layer**
+- **BullMQ-powered background processing**
+- **Idempotent order confirmation**
 
 ---
 
-## ✅ Order Flow (Reservation-Based Checkout)
+## 🔄 Order Lifecycle (Reservation-Based Checkout)
 
 ```text
 1. CREATE ORDER
-   ├─ Validate product + quantity
-   ├─ Deduct available stock (transactional)
-   ├─ Create reservation (ACTIVE, TTL 5 minutes)
+   ├─ Validate product & stock
+   ├─ Deduct available stock (atomic)
+   ├─ Create reservation (TTL: 5 min)
    ├─ Create order (PENDING_PAYMENT)
-   ├─ Cache reservation in Redis
+   ├─ Cache in Redis
    └─ Schedule expiry job via BullMQ
 
 2. PAYMENT PROCESSING
@@ -41,16 +56,16 @@ This service solves it using:
 
 3. CONFIRM ORDER (Idempotent)
    ├─ Validate order status
-   ├─ Mark reservation as CONFIRMED
-   ├─ Mark order as CONFIRMED
-   ├─ Remove Redis key (prevents expiry)
-   └─ Stock remains deducted
+   ├─ Mark reservation CONFIRMED
+   ├─ Mark order CONFIRMED
+   ├─ Remove Redis key
+   └─ Finalize stock deduction
 
 4. AUTO EXPIRY (BullMQ Worker)
    ├─ Worker detects expired reservation job
    ├─ Double-check Redis TTL
-   ├─ Restore stock safely
-   ├─ Mark order as EXPIRED
+   ├─ Restore stock
+   ├─ Mark order EXPIRED
    └─ Release inventory back into available stock
 ```
 
@@ -58,47 +73,43 @@ This service solves it using:
 
 ## ✨ Key Features
 
-### ✅ Real-Time Stock Management
+### 🧠 Strong Consistency & Concurrency Control
 
-- Prevents overselling using atomic DB operations
-- Tracks stock states:
-    - `totalStock`
-    - `availableStock`
-    - `reservedStock`
+- Prevents overselling using **ACID-compliant transactions**
+- Handles concurrent requests safely at scale
 
-### ✅ Time-Based Reservation Handling
+### ⏳ Time-Bound Reservations
 
-- 5-minute auto-expiration window for incomplete payments
-- Redis cache for fast lookup
-- Dual-layer validation (**Redis + MongoDB**) for safety
+- 5-minute reservation window
+- Automatic expiry & recovery
+- Dual validation (**Redis + MongoDB**)
 
-### ✅ Distributed Transactions (MongoDB Sessions)
+### 🔁 Idempotent Operations
 
-- ACID-safe inventory updates
-- Reservation + order creation happens as one atomic unit
-- Automatic rollback on conflicts
+- Safe retry for order confirmation
+- Eliminates duplicate state transitions
 
-### ✅ Background Expiry Processing
+### ⚡ High-Performance Caching
 
-- BullMQ worker restores inventory for expired reservations
-- Runs independently as a separate process
-- Consistent cleanup for long-running systems
+- Redis used for:
+    - Reservation lookups
+    - Expiry validation
+    - Reduced DB load
 
-### ✅ Robust Error Handling
+### 🔄 Background Job Processing
 
-- Clean mapping of business errors to HTTP responses
-- Consistent JSON response structure
-- Clear client-readable messages
+- BullMQ worker restores expired inventory
+- Ensures system self-healing
 
-### ✅ Idempotent Confirm Operation
+### 📦 Product Snapshotting
 
-- Confirmation can be safely retried
-- Prevents duplicate state transitions in edge cases
+- Order stores product data at purchase time
+- Prevents inconsistencies due to future updates
 
-### ✅ Product Snapshotting
+### 🛡️ Robust Error Handling
 
-- Order stores product details at checkout time (ex: name, price)
-- Protects historical accuracy during price/name changes
+- Clean, consistent API responses
+- Clear business error mapping
 
 ---
 
@@ -111,88 +122,60 @@ This service solves it using:
 | Database     | MongoDB + Mongoose |
 | Cache        | Redis (ioredis)    |
 | Queue System | BullMQ             |
+| API Docs     | Swagger/OpenAPI    |
 | Config       | dotenv             |
-| CORS         | cors               |
-| Module Type  | CommonJS           |
 
 ---
 
-## 📁 Project Structure
+## 📁 Project Architecture
 
 ```text
 e-commerce-inventory-service/
-├── app.js                          # Express server entry point
-├── package.json                    # Project dependencies & scripts
-│
-├── config/                         # Configuration modules
-│   ├── db.js                       # MongoDB connection setup
-│   └── redis.js                    # Redis client initialization
-│
-├── models/                         # Mongoose data schemas
-│   ├── product.model.js            # Product schema (stock management)
-│   ├── order.model.js              # Order schema (payment tracking)
-│   └── reservation.model.js        # Reservation schema (time-based holds)
-│
-├── controllers/                    # Request handlers & validation
-│   ├── product.controller.js       # GET /products endpoints
-│   ├── order.controller.js         # Order CRUD operations
-│   └── reservation.controller.js   # Reservation queries
-│
-├── services/                       # Business logic & transactions
-│   ├── order.service.js            # Order creation/confirmation/cancellation
-│   └── reservation.service.js      # Reservation lifecycle management
-│
-├── routes/                         # API endpoints
-│   ├── product.route.js            # Product listing endpoints
-│   ├── order.route.js              # Order management endpoints
-│   └── reservation.route.js        # Reservation query endpoints
-│
-├── queues/                         # BullMQ job queue setup
-│   └── reservation.queue.js        # Reservation expiry queue
-│
-└── workers/                        # Background job processors
-    └── reservationExpiry.worker.js # Expiry job handler & cleanup
+├── app.js
+├── config/
+├── models/
+├── controllers/
+├── services/
+├── docs/
+├── routes/
+├── queues/
+└── workers/
 ```
+
+### Architecture Highlights:
+
+- **Layered design** (Controller → Service → Model)
+- **Separation of concerns**
+- **Scalable microservice structure**
+- **Background worker isolation**
 
 ---
 
-## ⚙️ Getting Started
+## ⚙️ Setup & Installation
 
 ### ✅ Prerequisites
 
 Make sure you have:
 
-- **Node.js** (v16+ recommended)
+- **Node.js** (v16+)
 - **MongoDB** (Local / Atlas)
 - **Redis** (Local / Cloud)
-- **npm** or **yarn**
 
 ---
 
 ### 📥 Installation
 
-#### 1) Clone the repository
+#### Clone the repository
 
 ```bash
 git clone https://github.com/Itsmesachin98/e-commerce-inventory-service.git
 cd e-commerce-inventory-service
-```
-
-#### 2) Install dependencies
-
-```bash
 npm install
 ```
 
-#### 3) Setup environment variables
+#### Setup environment variables
 
 Create a `.env` file:
-
-```bash
-touch .env
-```
-
-Example `.env`:
 
 ```env
 PORT=3000
@@ -203,9 +186,9 @@ NODE_ENV=development
 
 ---
 
-## ▶️ Running the Project
+## ▶️ Running the Application
 
-### Start the API Server
+### Start API Server
 
 ```bash
 node app.js
@@ -217,11 +200,38 @@ Server runs at:
 http://localhost:3000
 ```
 
-### Start the Reservation Expiry Worker (separate terminal)
+### Start Background Worker (separate terminal)
 
 ```bash
 npm run worker:reservation
 ```
+
+### API Documentation
+
+The API is fully documented using Swagger. Access the interactive documentation at:
+
+```text
+http://localhost:3000/api-docs
+```
+
+This provides:
+
+- Complete endpoint documentation
+- Request/response schemas
+- Interactive API testing
+- Schema definitions for all models
+
+---
+
+## 📊 Why This Project Stands Out
+
+This is not a basic CRUD project. It demonstrates:
+
+- ✅ Real-world **e-commerce system design**
+- ✅ Handling **race conditions & concurrency**
+- ✅ Understanding of **distributed systems**
+- ✅ Experience with **background processing & queues**
+- ✅ Writing **production-ready backend architecture**
 
 ---
 
